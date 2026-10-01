@@ -31,25 +31,40 @@ def main() -> None:
 
     scenarios_sheet = workbook.active
     scenarios_sheet.title = "Scenarios"
-    add_header(scenarios_sheet, ["Scenario Name"])
+    add_header(
+        scenarios_sheet,
+        [
+            "Scenario Name",
+            "Default Technique",
+            "Other Technique",
+            "Technique Description",
+            "Global Technique",
+        ],
+    )
+
+    global_technique_names = {technique["name"] for technique in catalog.get("techniques", [])}
     for scenario in sorted(catalog.get("scenarios", []), key=lambda item: item["registry_name"]):
-        scenarios_sheet.append([scenario["registry_name"]])
-    set_column_widths(scenarios_sheet, {1: 42})
-
-    scenario_names_by_default_technique: dict[str, list[str]] = {}
-    for scenario in catalog.get("scenarios", []):
         scenario_name = scenario["registry_name"]
-        for technique_name in scenario.get("default_techniques", []):
-            scenario_names_by_default_technique.setdefault(technique_name, []).append(scenario_name)
+        default_techniques = set(scenario.get("default_techniques", []))
+        all_techniques = set(scenario.get("all_techniques", []))
+        summaries = {summary["name"]: summary for summary in scenario.get("technique_summaries", [])}
 
-    techniques_sheet = workbook.create_sheet("Techniques")
-    add_header(techniques_sheet, ["Technique Name", "Default Scenarios"])
-    for technique in sorted(catalog.get("techniques", []), key=lambda item: item["name"]):
-        scenario_names = sorted(set(scenario_names_by_default_technique.get(technique["name"], [])))
-        techniques_sheet.append([technique["name"], "\n".join(scenario_names)])
-    for row in techniques_sheet.iter_rows(min_row=2):
-        row[1].alignment = Alignment(vertical="top", wrap_text=True)
-    set_column_widths(techniques_sheet, {1: 36, 2: 48})
+        for technique_name in sorted(default_techniques | all_techniques):
+            description = (summaries.get(technique_name) or {}).get("description") or ""
+            is_default = technique_name in default_techniques
+            scenarios_sheet.append(
+                [
+                    scenario_name,
+                    technique_name if is_default else "",
+                    "" if is_default else technique_name,
+                    description,
+                    "Yes" if technique_name in global_technique_names else "No",
+                ]
+            )
+    for row in scenarios_sheet.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+    set_column_widths(scenarios_sheet, {1: 36, 2: 34, 3: 34, 4: 90, 5: 18})
 
     datasets_sheet = workbook.create_sheet("Datasets")
     add_header(datasets_sheet, ["Dataset Name", "Harm Categories"])
